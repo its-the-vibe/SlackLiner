@@ -57,23 +57,29 @@ func main() {
 	}
 	log.Println("Slack authentication successful")
 
-	// Setup graceful shutdown
+	// Setup graceful shutdown with context
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	// Start message processing loop
 	log.Printf("Starting to listen for messages on Redis list '%s'...", redisListKey)
-	go processMessages(ctx, rdb, slackClient, redisListKey, sigChan)
+	go processMessages(ctx, rdb, slackClient, redisListKey)
 
 	// Wait for shutdown signal
 	<-sigChan
 	log.Println("Shutting down gracefully...")
+	cancel()
+	time.Sleep(1 * time.Second) // Give goroutine time to finish current operation
 }
 
-func processMessages(ctx context.Context, rdb *redis.Client, slackClient *slack.Client, listKey string, sigChan chan os.Signal) {
+func processMessages(ctx context.Context, rdb *redis.Client, slackClient *slack.Client, listKey string) {
 	for {
 		select {
-		case <-sigChan:
+		case <-ctx.Done():
+			log.Println("Message processing stopped")
 			return
 		default:
 			// BLPOP blocks until a message is available or timeout occurs
