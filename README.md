@@ -87,6 +87,9 @@ You can also include custom metadata with your messages:
 - **metadata** (optional): Custom metadata to attach to the message
   - **event_type**: A string identifier for the event type (max 255 characters)
   - **event_payload**: A JSON object containing custom data (max 50 keys, values must be strings, numbers, or booleans)
+  
+> **Note**: Metadata is useful for tracking message context, workflow states, or custom events. 
+> See [Slack's metadata documentation](https://api.slack.com/reference/metadata) for more details.
 
 ## Slack App Setup
 
