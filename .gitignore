@@ -28,6 +28,11 @@ go.work.sum
 # env file
 .env
 
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
 # Editor/IDE
 # .idea/
 # .vscode/

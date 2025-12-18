@@ -13,10 +13,17 @@ import (
 	"github.com/slack-go/slack"
 )
 
+// MessageMetadata represents optional metadata to attach to a Slack message
+type MessageMetadata struct {
+	EventType    string                 `json:"event_type"`
+	EventPayload map[string]interface{} `json:"event_payload"`
+}
+
 // SlackMessage represents the payload structure expected from Redis
 type SlackMessage struct {
-	Channel string `json:"channel"`
-	Text    string `json:"text"`
+	Channel  string           `json:"channel"`
+	Text     string           `json:"text"`
+	Metadata *MessageMetadata `json:"metadata,omitempty"`
 }
 
 func main() {
@@ -116,10 +123,22 @@ func processMessages(ctx context.Context, rdb *redis.Client, slackClient *slack.
 
 			// Send to Slack
 			log.Printf("Sending message to channel '%s': %s", msg.Channel, msg.Text)
-			channelID, timestamp, err := slackClient.PostMessage(
-				msg.Channel,
+			
+			// Build message options
+			msgOptions := []slack.MsgOption{
 				slack.MsgOptionText(msg.Text, false),
-			)
+			}
+			
+			// Add metadata if provided
+			if msg.Metadata != nil {
+				log.Printf("Including metadata with event_type: %s", msg.Metadata.EventType)
+				msgOptions = append(msgOptions, slack.MsgOptionMetadata(slack.SlackMetadata{
+					EventType:    msg.Metadata.EventType,
+					EventPayload: msg.Metadata.EventPayload,
+				}))
+			}
+			
+			channelID, timestamp, err := slackClient.PostMessage(msg.Channel, msgOptions...)
 			if err != nil {
 				log.Printf("Error posting to Slack: %v", err)
 				continue

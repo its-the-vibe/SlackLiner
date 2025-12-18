@@ -61,8 +61,35 @@ Messages in the Redis list should be JSON objects with the following structure:
 }
 ```
 
+### With Metadata (Optional)
+
+You can also include custom metadata with your messages:
+
+```json
+{
+  "channel": "#general",
+  "text": "Your message here",
+  "metadata": {
+    "event_type": "task_created",
+    "event_payload": {
+      "id": "12345",
+      "priority": "high",
+      "assignee": "john"
+    }
+  }
+}
+```
+
+### Field Descriptions
+
 - **channel**: The Slack channel ID or name (e.g., `#general`, `C1234567890`)
 - **text**: The message text to send
+- **metadata** (optional): Custom metadata to attach to the message
+  - **event_type**: A string identifier for the event type (max 255 characters)
+  - **event_payload**: A JSON object containing custom data (max 50 keys, values must be strings, numbers, or booleans)
+  
+> **Note**: Metadata is useful for tracking message context, workflow states, or custom events. 
+> See [Slack's metadata documentation](https://api.slack.com/reference/metadata) for more details.
 
 ## Slack App Setup
 
@@ -113,16 +140,36 @@ docker run -e SLACK_BOT_TOKEN=xoxb-your-token \
 Push messages to Redis from any Redis client:
 
 ```bash
-# Using redis-cli
+# Using redis-cli - Simple message
 redis-cli RPUSH slack_messages '{"channel":"#general","text":"Hello World!"}'
+
+# Using redis-cli - Message with metadata
+redis-cli RPUSH slack_messages '{"channel":"#general","text":"Task created: Fix bug #123","metadata":{"event_type":"task_created","event_payload":{"task_id":"123","priority":"high"}}}'
 
 # Using Python
 import redis
 import json
 
 r = redis.Redis(host='localhost', port=6379)
+
+# Simple message
 message = {"channel": "#general", "text": "Hello from Python!"}
 r.rpush('slack_messages', json.dumps(message))
+
+# Message with metadata
+message_with_metadata = {
+    "channel": "#general", 
+    "text": "Task created: Fix bug #123",
+    "metadata": {
+        "event_type": "task_created",
+        "event_payload": {
+            "task_id": "123",
+            "priority": "high",
+            "assignee": "john"
+        }
+    }
+}
+r.rpush('slack_messages', json.dumps(message_with_metadata))
 ```
 
 ## Development
