@@ -123,12 +123,13 @@ func processMessages(ctx context.Context, rdb *redis.Client, slackClient *slack.
 
 			// Send to Slack
 			log.Printf("Sending message to channel '%s': %s", msg.Channel, msg.Text)
-			
+
 			// Build message options
 			msgOptions := []slack.MsgOption{
 				slack.MsgOptionText(msg.Text, false),
+				slack.MsgOptionDisableLinkUnfurl(),
 			}
-			
+
 			// Add metadata if provided
 			if msg.Metadata != nil {
 				log.Printf("Including metadata with event_type: %s", msg.Metadata.EventType)
@@ -137,7 +138,7 @@ func processMessages(ctx context.Context, rdb *redis.Client, slackClient *slack.
 					EventPayload: msg.Metadata.EventPayload,
 				}))
 			}
-			
+
 			channelID, timestamp, err := slackClient.PostMessage(msg.Channel, msgOptions...)
 			if err != nil {
 				log.Printf("Error posting to Slack: %v", err)
