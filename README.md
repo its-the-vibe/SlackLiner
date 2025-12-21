@@ -49,6 +49,7 @@ Configure the service using environment variables:
 | `REDIS_ADDR` | Redis server address | `localhost:6379` | ❌ |
 | `REDIS_PASSWORD` | Redis password (if authentication is enabled) | - | ❌ |
 | `REDIS_LIST_KEY` | Redis list key to read messages from | `slack_messages` | ❌ |
+| `TIMEBOMB_REDIS_CHANNEL` | Redis Pub/Sub channel for TimeBomb integration | `timebomb-messages` | ❌ |
 
 ## Message Format
 
@@ -58,6 +59,18 @@ Messages in the Redis list should be JSON objects with the following structure:
 {
   "channel": "#general",
   "text": "Your message here"
+}
+```
+
+### With TTL (Optional)
+
+You can include a `ttl` field to automatically delete the message after a specified number of seconds via [TimeBomb](https://github.com/its-the-vibe/TimeBomb):
+
+```json
+{
+  "channel": "#general",
+  "text": "This message will be deleted in 1 hour",
+  "ttl": 3600
 }
 ```
 
@@ -84,12 +97,15 @@ You can also include custom metadata with your messages:
 
 - **channel**: The Slack channel ID or name (e.g., `#general`, `C1234567890`)
 - **text**: The message text to send
+- **ttl** (optional): Time-to-live in seconds - if provided, the message will be automatically deleted after this duration via [TimeBomb](https://github.com/its-the-vibe/TimeBomb)
 - **metadata** (optional): Custom metadata to attach to the message
   - **event_type**: A string identifier for the event type (max 255 characters)
   - **event_payload**: A JSON object containing custom data (max 50 keys, values must be strings, numbers, or booleans)
   
 > **Note**: Metadata is useful for tracking message context, workflow states, or custom events. 
 > See [Slack's metadata documentation](https://api.slack.com/reference/metadata) for more details.
+
+> **Note**: The TTL feature requires [TimeBomb](https://github.com/its-the-vibe/TimeBomb) to be running and connected to the same Redis instance. When a message with a TTL is sent, SlackLiner will publish the message details to the configured TimeBomb Redis channel for scheduled deletion.
 
 ## Slack App Setup
 
@@ -146,6 +162,12 @@ redis-cli RPUSH slack_messages '{"channel":"#general","text":"Hello World!"}'
 # Using redis-cli - Message with metadata
 redis-cli RPUSH slack_messages '{"channel":"#general","text":"Task created: Fix bug #123","metadata":{"event_type":"task_created","event_payload":{"task_id":"123","priority":"high"}}}'
 
+# Using redis-cli - Message with TTL (auto-delete after 1 hour)
+redis-cli RPUSH slack_messages '{"channel":"#general","text":"This message will self-destruct in 1 hour","ttl":3600}'
+
+# Using redis-cli - Message with TTL and metadata
+redis-cli RPUSH slack_messages '{"channel":"#general","text":"Alert: High CPU usage","ttl":300,"metadata":{"event_type":"alert","event_payload":{"severity":"high","metric":"cpu"}}}'
+
 # Using Python
 import redis
 import json
@@ -170,6 +192,30 @@ message_with_metadata = {
     }
 }
 r.rpush('slack_messages', json.dumps(message_with_metadata))
+
+# Message with TTL (auto-delete after 5 minutes)
+message_with_ttl = {
+    "channel": "#general",
+    "text": "This temporary message will be deleted in 5 minutes",
+    "ttl": 300
+}
+r.rpush('slack_messages', json.dumps(message_with_ttl))
+
+# Message with TTL and metadata
+message_with_ttl_and_metadata = {
+    "channel": "#alerts",
+    "text": "Alert: High CPU usage detected",
+    "ttl": 600,
+    "metadata": {
+        "event_type": "alert",
+        "event_payload": {
+            "severity": "high",
+            "metric": "cpu",
+            "value": 95
+        }
+    }
+}
+r.rpush('slack_messages', json.dumps(message_with_ttl_and_metadata))
 ```
 
 ## Development
