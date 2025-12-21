@@ -16,4 +16,6 @@ services:
       - REDIS_LIST_KEY=slack_messages
       # Slack configuration
       - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      # TimeBomb configuration
+      - TIMEBOMB_REDIS_CHANNEL=${TIMEBOMB_REDIS_CHANNEL:-timebomb-messages}
     restart: unless-stopped
