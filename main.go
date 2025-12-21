@@ -173,16 +173,14 @@ func processMessages(ctx context.Context, rdb *redis.Client, slackClient *slack.
 				tbPayload, err := json.Marshal(tbMsg)
 				if err != nil {
 					log.Printf("Error marshaling TimeBomb message: %v", err)
-					continue
+				} else {
+					err = rdb.Publish(ctx, timeBombChannel, string(tbPayload)).Err()
+					if err != nil {
+						log.Printf("Error publishing to TimeBomb channel '%s': %v", timeBombChannel, err)
+					} else {
+						log.Printf("Published to TimeBomb for deletion: channel=%s, ts=%s, ttl=%ds", channelID, timestamp, msg.TTL)
+					}
 				}
-
-				err = rdb.Publish(ctx, timeBombChannel, string(tbPayload)).Err()
-				if err != nil {
-					log.Printf("Error publishing to TimeBomb channel '%s': %v", timeBombChannel, err)
-					continue
-				}
-
-				log.Printf("Published to TimeBomb for deletion: channel=%s, ts=%s, ttl=%ds", channelID, timestamp, msg.TTL)
 			}
 		}
 	}
