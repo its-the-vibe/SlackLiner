@@ -1,6 +1,6 @@
 # SlackLiner
 
-A simple Golang service that reads Slack message payloads from a Redis list and publishes them to Slack using the Slack API.
+A simple Golang service that reads Slack message payloads from a Redis list and publishes them to Slack using the Slack API. It also supports adding emoji reactions to existing Slack messages.
 
 ## Features
 
@@ -8,6 +8,7 @@ A simple Golang service that reads Slack message payloads from a Redis list and 
 - 📦 Lightweight Docker container built from scratch
 - 🔄 Uses Redis BLPOP for efficient message queue processing
 - 💬 Slack App integration with bot token (supports dynamic channels)
+- 😄 Emoji reaction support for existing messages
 - ⚙️ Fully configurable via environment variables
 - 🛡️ Graceful shutdown handling
 
@@ -39,6 +40,11 @@ A simple Golang service that reads Slack message payloads from a Redis list and 
    docker exec slackliner-redis redis-cli RPUSH slack_messages '{"channel":"#general","text":"Hello from SlackLiner!"}'
    ```
 
+5. **Add a test reaction:**
+   ```bash
+   docker exec slackliner-redis redis-cli RPUSH slack_reactions '{"reaction":"thumbsup","channel":"#general","ts":"1234567890.123456"}'
+   ```
+
 ## Configuration
 
 Configure the service using environment variables:
@@ -49,9 +55,12 @@ Configure the service using environment variables:
 | `REDIS_ADDR` | Redis server address | `localhost:6379` | ❌ |
 | `REDIS_PASSWORD` | Redis password (if authentication is enabled) | - | ❌ |
 | `REDIS_LIST_KEY` | Redis list key to read messages from | `slack_messages` | ❌ |
+| `REDIS_REACTION_LIST_KEY` | Redis list key to read reactions from | `slack_reactions` | ❌ |
 | `TIMEBOMB_REDIS_CHANNEL` | Redis Pub/Sub channel for TimeBomb integration | `timebomb-messages` | ❌ |
 
-## Message Format
+## Message Formats
+
+### Posting Messages
 
 Messages in the Redis list should be JSON objects with the following structure:
 
@@ -107,6 +116,26 @@ You can also include custom metadata with your messages:
 
 > **Note**: The TTL feature requires [TimeBomb](https://github.com/its-the-vibe/TimeBomb) to be running and connected to the same Redis instance. When a message with a TTL is sent, SlackLiner will publish the message details to the configured TimeBomb Redis channel for scheduled deletion.
 
+### Adding Emoji Reactions
+
+To add an emoji reaction to an existing Slack message, push a JSON object to the `slack_reactions` Redis list:
+
+```json
+{
+  "reaction": "heart_eyes_cat",
+  "channel": "C1234567890",
+  "ts": "1766282873.772199"
+}
+```
+
+#### Field Descriptions
+
+- **reaction**: The emoji name without colons (e.g., `thumbsup`, `heart_eyes_cat`, `tada`)
+- **channel**: The Slack channel ID (e.g., `C1234567890`)
+- **ts**: The message timestamp (obtained when posting a message or from Slack's API)
+
+> **Note**: To add reactions, you need the message timestamp (`ts`) which is returned when posting a message or can be retrieved from Slack's API. The channel should be the channel ID, not the channel name for reactions.
+
 ## Slack App Setup
 
 1. Go to [Slack API Apps](https://api.slack.com/apps)
@@ -116,6 +145,7 @@ You can also include custom metadata with your messages:
 5. Add the following Bot Token Scopes:
    - `chat:write` - Send messages
    - `chat:write.public` - Send messages to channels the app isn't in
+   - `reactions:write` - Add emoji reactions to messages
 6. Install the app to your workspace
 7. Copy the "Bot User OAuth Token" (starts with `xoxb-`)
 8. Use this token as your `SLACK_BOT_TOKEN`
@@ -132,6 +162,9 @@ docker-compose up -d
 
 # Push a message to Redis
 docker exec slackliner-redis redis-cli RPUSH slack_messages '{"channel":"#general","text":"Test message"}'
+
+# Add a reaction to a message
+docker exec slackliner-redis redis-cli RPUSH slack_reactions '{"reaction":"thumbsup","channel":"C1234567890","ts":"1766282873.772199"}'
 
 # View logs
 docker-compose logs -f slackliner
@@ -167,6 +200,12 @@ redis-cli RPUSH slack_messages '{"channel":"#general","text":"This message will 
 
 # Using redis-cli - Message with TTL and metadata
 redis-cli RPUSH slack_messages '{"channel":"#general","text":"Alert: High CPU usage","ttl":300,"metadata":{"event_type":"alert","event_payload":{"severity":"high","metric":"cpu"}}}'
+
+# Using redis-cli - Add emoji reaction
+redis-cli RPUSH slack_reactions '{"reaction":"heart_eyes_cat","channel":"C1234567890","ts":"1766282873.772199"}'
+
+# Using redis-cli - Add thumbsup reaction
+redis-cli RPUSH slack_reactions '{"reaction":"thumbsup","channel":"#general","ts":"1234567890.123456"}'
 
 # Using Python
 import redis
@@ -216,6 +255,22 @@ message_with_ttl_and_metadata = {
     }
 }
 r.rpush('slack_messages', json.dumps(message_with_ttl_and_metadata))
+
+# Add emoji reaction
+reaction = {
+    "reaction": "heart_eyes_cat",
+    "channel": "C1234567890",
+    "ts": "1766282873.772199"
+}
+r.rpush('slack_reactions', json.dumps(reaction))
+
+# Add multiple reactions
+reactions = [
+    {"reaction": "thumbsup", "channel": "C1234567890", "ts": "1766282873.772199"},
+    {"reaction": "tada", "channel": "C1234567890", "ts": "1766282873.772199"}
+]
+for reaction in reactions:
+    r.rpush('slack_reactions', json.dumps(reaction))
 ```
 
 ## Development
@@ -244,22 +299,37 @@ docker build -t slackliner .
 ## Architecture
 
 ```
-┌─────────────┐         ┌─────────────┐         ┌─────────────┐
-│   Producer  │ RPUSH   │    Redis    │  BLPOP  │ SlackLiner  │
-│   (Any App) ├────────►│    Queue    ├────────►│   Service   │
-└─────────────┘         └─────────────┘         └──────┬──────┘
-                                                        │
-                                                        │ POST
-                                                        ▼
-                                                ┌─────────────┐
-                                                │  Slack API  │
-                                                └─────────────┘
+┌─────────────┐         ┌──────────────────┐         ┌─────────────┐
+│   Producer  │ RPUSH   │  Redis Queues    │  BLPOP  │ SlackLiner  │
+│   (Any App) ├────────►│  - Messages      ├────────►│   Service   │
+│             │         │  - Reactions     │         │             │
+└─────────────┘         └──────────────────┘         └──────┬──────┘
+                                                             │
+                                                             │ POST/React
+                                                             ▼
+                                                     ┌─────────────┐
+                                                     │  Slack API  │
+                                                     └─────────────┘
 ```
 
 1. **Producer**: Any application that can write to Redis (API server, cron job, etc.)
-2. **Redis Queue**: Stores messages in a list using RPUSH
-3. **SlackLiner**: Reads messages using BLPOP (blocking, efficient)
-4. **Slack API**: Receives messages via the Slack Bot API
+2. **Redis Queues**: 
+   - `slack_messages` - Stores message payloads using RPUSH
+   - `slack_reactions` - Stores reaction payloads using RPUSH
+3. **SlackLiner**: Reads from both queues using BLPOP (blocking, efficient)
+   - Processes messages and posts to Slack channels
+   - Processes reactions and adds emoji reactions to existing messages
+4. **Slack API**: Receives messages and reactions via the Slack Bot API
+
+## Project Structure
+
+The codebase is organized into focused modules:
+
+- `main.go` - Application entry point and configuration
+- `types.go` - Type definitions for messages and reactions
+- `redis.go` - Redis queue processing logic
+- `slack.go` - Slack API operations (posting messages, adding reactions)
+- `main_test.go` - Comprehensive test suite
 
 ## License
 

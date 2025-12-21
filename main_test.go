@@ -240,3 +240,127 @@ func TestSlackMessageMarshaling(t *testing.T) {
 		})
 	}
 }
+
+func TestReactionMessageParsing(t *testing.T) {
+	tests := []struct {
+		name      string
+		jsonInput string
+		wantErr   bool
+		validate  func(*testing.T, ReactionMessage)
+	}{
+		{
+			name:      "valid reaction message",
+			jsonInput: `{"reaction":"heart_eyes_cat","channel":"C1234567890","ts":"1766282873.772199"}`,
+			wantErr:   false,
+			validate: func(t *testing.T, msg ReactionMessage) {
+				if msg.Reaction != "heart_eyes_cat" {
+					t.Errorf("Reaction = %v, want heart_eyes_cat", msg.Reaction)
+				}
+				if msg.Channel != "C1234567890" {
+					t.Errorf("Channel = %v, want C1234567890", msg.Channel)
+				}
+				if msg.TS != "1766282873.772199" {
+					t.Errorf("TS = %v, want 1766282873.772199", msg.TS)
+				}
+			},
+		},
+		{
+			name:      "reaction with different emoji",
+			jsonInput: `{"reaction":"thumbsup","channel":"#general","ts":"1234567890.123456"}`,
+			wantErr:   false,
+			validate: func(t *testing.T, msg ReactionMessage) {
+				if msg.Reaction != "thumbsup" {
+					t.Errorf("Reaction = %v, want thumbsup", msg.Reaction)
+				}
+				if msg.Channel != "#general" {
+					t.Errorf("Channel = %v, want #general", msg.Channel)
+				}
+				if msg.TS != "1234567890.123456" {
+					t.Errorf("TS = %v, want 1234567890.123456", msg.TS)
+				}
+			},
+		},
+		{
+			name:      "reaction with tada emoji",
+			jsonInput: `{"reaction":"tada","channel":"C9876543210","ts":"9999999999.999999"}`,
+			wantErr:   false,
+			validate: func(t *testing.T, msg ReactionMessage) {
+				if msg.Reaction != "tada" {
+					t.Errorf("Reaction = %v, want tada", msg.Reaction)
+				}
+			},
+		},
+		{
+			name:      "invalid JSON",
+			jsonInput: `{"reaction":"heart"`,
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var msg ReactionMessage
+			err := json.Unmarshal([]byte(tt.jsonInput), &msg)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("json.Unmarshal() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && tt.validate != nil {
+				tt.validate(t, msg)
+			}
+		})
+	}
+}
+
+func TestReactionMessageMarshaling(t *testing.T) {
+	tests := []struct {
+		name    string
+		msg     ReactionMessage
+		wantErr bool
+	}{
+		{
+			name: "simple reaction",
+			msg: ReactionMessage{
+				Reaction: "heart_eyes_cat",
+				Channel:  "C1234567890",
+				TS:       "1766282873.772199",
+			},
+			wantErr: false,
+		},
+		{
+			name: "thumbsup reaction",
+			msg: ReactionMessage{
+				Reaction: "thumbsup",
+				Channel:  "#general",
+				TS:       "1234567890.123456",
+			},
+			wantErr: false,
+		},
+		{
+			name: "tada reaction",
+			msg: ReactionMessage{
+				Reaction: "tada",
+				Channel:  "C9876543210",
+				TS:       "9999999999.999999",
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.msg)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("json.Marshal() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				// Verify we can unmarshal back
+				var msg ReactionMessage
+				if err := json.Unmarshal(data, &msg); err != nil {
+					t.Errorf("Failed to unmarshal back: %v", err)
+				}
+			}
+		})
+	}
+}
