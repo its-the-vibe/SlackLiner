@@ -94,6 +94,59 @@ func TestSlackMessageParsing(t *testing.T) {
 			},
 		},
 		{
+			name:      "message with TTL",
+			jsonInput: `{"channel":"#general","text":"Temporary message","ttl":3600}`,
+			wantErr:   false,
+			validate: func(t *testing.T, msg SlackMessage) {
+				if msg.Channel != "#general" {
+					t.Errorf("Channel = %v, want #general", msg.Channel)
+				}
+				if msg.Text != "Temporary message" {
+					t.Errorf("Text = %v, want Temporary message", msg.Text)
+				}
+				if msg.TTL != 3600 {
+					t.Errorf("TTL = %v, want 3600", msg.TTL)
+				}
+			},
+		},
+		{
+			name: "message with TTL and metadata",
+			jsonInput: `{
+				"channel":"#alerts",
+				"text":"Alert notification",
+				"ttl":300,
+				"metadata":{
+					"event_type":"alert_created",
+					"event_payload":{"severity":"high"}
+				}
+			}`,
+			wantErr: false,
+			validate: func(t *testing.T, msg SlackMessage) {
+				if msg.Channel != "#alerts" {
+					t.Errorf("Channel = %v, want #alerts", msg.Channel)
+				}
+				if msg.TTL != 300 {
+					t.Errorf("TTL = %v, want 300", msg.TTL)
+				}
+				if msg.Metadata == nil {
+					t.Fatal("Metadata should not be nil")
+				}
+				if msg.Metadata.EventType != "alert_created" {
+					t.Errorf("EventType = %v, want alert_created", msg.Metadata.EventType)
+				}
+			},
+		},
+		{
+			name:      "message with zero TTL (should be ignored)",
+			jsonInput: `{"channel":"#general","text":"No deletion","ttl":0}`,
+			wantErr:   false,
+			validate: func(t *testing.T, msg SlackMessage) {
+				if msg.TTL != 0 {
+					t.Errorf("TTL = %v, want 0", msg.TTL)
+				}
+			},
+		},
+		{
 			name:      "invalid JSON",
 			jsonInput: `{"channel":"#general"`,
 			wantErr:   true,
@@ -139,6 +192,30 @@ func TestSlackMessageMarshaling(t *testing.T) {
 					EventPayload: map[string]interface{}{
 						"task_id":  "123",
 						"priority": "high",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "message with TTL",
+			msg: SlackMessage{
+				Channel: "#general",
+				Text:    "Temporary message",
+				TTL:     3600,
+			},
+			wantErr: false,
+		},
+		{
+			name: "message with TTL and metadata",
+			msg: SlackMessage{
+				Channel: "#alerts",
+				Text:    "Alert notification",
+				TTL:     300,
+				Metadata: &MessageMetadata{
+					EventType: "alert_created",
+					EventPayload: map[string]interface{}{
+						"severity": "high",
 					},
 				},
 			},
