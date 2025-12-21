@@ -20,11 +20,17 @@ push_message() {
     
     local json_message
     
+    # Validate and normalize TTL
+    local use_ttl=false
+    if [ -n "$ttl" ] && [ "$ttl" -gt 0 ] 2>/dev/null; then
+        use_ttl=true
+    fi
+    
     # Build JSON based on provided parameters
     if [ -n "$event_type" ]; then
         # Message with metadata
         if [ -n "$event_payload" ]; then
-            if [ -n "$ttl" ]; then
+            if [ "$use_ttl" = true ]; then
                 json_message=$(cat <<EOF
 {"channel":"$channel","text":"$text","ttl":$ttl,"metadata":{"event_type":"$event_type","event_payload":$event_payload}}
 EOF
@@ -36,7 +42,7 @@ EOF
 )
             fi
         else
-            if [ -n "$ttl" ]; then
+            if [ "$use_ttl" = true ]; then
                 json_message=$(cat <<EOF
 {"channel":"$channel","text":"$text","ttl":$ttl,"metadata":{"event_type":"$event_type","event_payload":{}}}
 EOF
@@ -48,7 +54,7 @@ EOF
 )
             fi
         fi
-    elif [ -n "$ttl" ]; then
+    elif [ "$use_ttl" = true ]; then
         # Message with TTL but no metadata
         json_message=$(cat <<EOF
 {"channel":"$channel","text":"$text","ttl":$ttl}
