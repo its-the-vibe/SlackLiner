@@ -73,7 +73,7 @@ else
     echo "Usage: $0 <channel> <text> [ttl] [event_type] [event_payload_json]"
     echo "Example (simple): $0 '#general' 'Hello from SlackLiner!'"
     echo "Example (with TTL): $0 '#general' 'This will be deleted in 5 minutes' 300"
-    echo "Example (with metadata): $0 '#general' 'Task created' '' 'task_created' '{\"task_id\":\"123\",\"priority\":\"high\"}'"
+    echo "Example (with metadata only): $0 '#general' 'Task created' 0 'task_created' '{\"task_id\":\"123\",\"priority\":\"high\"}'"
     echo "Example (with TTL and metadata): $0 '#alerts' 'High CPU alert' 600 'alert' '{\"severity\":\"high\",\"metric\":\"cpu\"}'"
     exit 1
 fi
