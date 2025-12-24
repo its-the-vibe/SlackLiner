@@ -17,6 +17,7 @@ type TimeBombMessage struct {
 type SlackMessage struct {
 	Channel  string           `json:"channel"`
 	Text     string           `json:"text"`
+	ThreadTS string           `json:"thread_ts,omitempty"` // Thread timestamp to reply to an existing thread
 	Metadata *MessageMetadata `json:"metadata,omitempty"`
 	TTL      int              `json:"ttl,omitempty"` // Time-to-live in seconds for automatic deletion via TimeBomb
 }

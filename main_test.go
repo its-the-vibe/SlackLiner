@@ -147,6 +147,59 @@ func TestSlackMessageParsing(t *testing.T) {
 			},
 		},
 		{
+			name:      "message with thread_ts",
+			jsonInput: `{"channel":"#general","text":"Reply to thread","thread_ts":"1234567890.123456"}`,
+			wantErr:   false,
+			validate: func(t *testing.T, msg SlackMessage) {
+				if msg.Channel != "#general" {
+					t.Errorf("Channel = %v, want #general", msg.Channel)
+				}
+				if msg.Text != "Reply to thread" {
+					t.Errorf("Text = %v, want Reply to thread", msg.Text)
+				}
+				if msg.ThreadTS != "1234567890.123456" {
+					t.Errorf("ThreadTS = %v, want 1234567890.123456", msg.ThreadTS)
+				}
+			},
+		},
+		{
+			name: "message with thread_ts and metadata",
+			jsonInput: `{
+				"channel":"#general",
+				"text":"Thread reply with metadata",
+				"thread_ts":"1234567890.123456",
+				"metadata":{
+					"event_type":"thread_reply",
+					"event_payload":{"reply_type":"automated"}
+				}
+			}`,
+			wantErr: false,
+			validate: func(t *testing.T, msg SlackMessage) {
+				if msg.ThreadTS != "1234567890.123456" {
+					t.Errorf("ThreadTS = %v, want 1234567890.123456", msg.ThreadTS)
+				}
+				if msg.Metadata == nil {
+					t.Fatal("Metadata should not be nil")
+				}
+				if msg.Metadata.EventType != "thread_reply" {
+					t.Errorf("EventType = %v, want thread_reply", msg.Metadata.EventType)
+				}
+			},
+		},
+		{
+			name:      "message with thread_ts and TTL",
+			jsonInput: `{"channel":"#general","text":"Temporary thread reply","thread_ts":"1234567890.123456","ttl":300}`,
+			wantErr:   false,
+			validate: func(t *testing.T, msg SlackMessage) {
+				if msg.ThreadTS != "1234567890.123456" {
+					t.Errorf("ThreadTS = %v, want 1234567890.123456", msg.ThreadTS)
+				}
+				if msg.TTL != 300 {
+					t.Errorf("TTL = %v, want 300", msg.TTL)
+				}
+			},
+		},
+		{
 			name:      "invalid JSON",
 			jsonInput: `{"channel":"#general"`,
 			wantErr:   true,
@@ -218,6 +271,40 @@ func TestSlackMessageMarshaling(t *testing.T) {
 						"severity": "high",
 					},
 				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "message with thread_ts",
+			msg: SlackMessage{
+				Channel:  "#general",
+				Text:     "Reply to thread",
+				ThreadTS: "1234567890.123456",
+			},
+			wantErr: false,
+		},
+		{
+			name: "message with thread_ts and metadata",
+			msg: SlackMessage{
+				Channel:  "#general",
+				Text:     "Thread reply with metadata",
+				ThreadTS: "1234567890.123456",
+				Metadata: &MessageMetadata{
+					EventType: "thread_reply",
+					EventPayload: map[string]interface{}{
+						"reply_type": "automated",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "message with thread_ts and TTL",
+			msg: SlackMessage{
+				Channel:  "#general",
+				Text:     "Temporary thread reply",
+				ThreadTS: "1234567890.123456",
+				TTL:      300,
 			},
 			wantErr: false,
 		},
