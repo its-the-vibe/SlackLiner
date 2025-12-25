@@ -9,7 +9,11 @@ services:
     read_only: true
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    ports:
+      - "8080:8080"
     environment:
+      # HTTP server configuration
+      - HTTP_ADDR=:8080
       # Redis configuration
       - REDIS_ADDR=${REDIS_ADDR:-host.docker.internal:6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}

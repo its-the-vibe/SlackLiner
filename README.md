@@ -1,12 +1,13 @@
 # SlackLiner
 
-A simple Golang service that reads Slack message payloads from a Redis list and publishes them to Slack using the Slack API. It also supports adding emoji reactions to existing Slack messages.
+A simple Golang service that reads Slack message payloads from a Redis list and publishes them to Slack using the Slack API. It also supports adding emoji reactions to existing Slack messages and provides an HTTP API for direct message posting.
 
 ## Features
 
 - 🚀 Written in Go 1.24
 - 📦 Lightweight Docker container built from scratch
 - 🔄 Uses Redis BLPOP for efficient message queue processing
+- 🌐 HTTP API endpoint for direct message posting with timestamp response
 - 💬 Slack App integration with bot token (supports dynamic channels)
 - 😄 Emoji reaction support for existing messages
 - ⚙️ Fully configurable via environment variables
@@ -35,12 +36,19 @@ A simple Golang service that reads Slack message payloads from a Redis list and 
    docker-compose up -d
    ```
 
-4. **Send a test message:**
+4. **Send a test message via HTTP:**
+   ```bash
+   curl -X POST http://localhost:8080/message \
+     -H "Content-Type: application/json" \
+     -d '{"channel":"#general","text":"Hello from SlackLiner HTTP API!"}'
+   ```
+
+5. **Or send via Redis queue:**
    ```bash
    docker exec slackliner-redis redis-cli RPUSH slack_messages '{"channel":"#general","text":"Hello from SlackLiner!"}'
    ```
 
-5. **Add a test reaction:**
+6. **Add a test reaction:**
    ```bash
    docker exec slackliner-redis redis-cli RPUSH slack_reactions '{"reaction":"thumbsup","channel":"#general","ts":"1234567890.123456"}'
    ```
@@ -52,11 +60,81 @@ Configure the service using environment variables:
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `SLACK_BOT_TOKEN` | Slack Bot User OAuth Token | - | ✅ |
+| `HTTP_ADDR` | HTTP server address | `:8080` | ❌ |
 | `REDIS_ADDR` | Redis server address | `localhost:6379` | ❌ |
 | `REDIS_PASSWORD` | Redis password (if authentication is enabled) | - | ❌ |
 | `REDIS_LIST_KEY` | Redis list key to read messages from | `slack_messages` | ❌ |
 | `REDIS_REACTION_LIST_KEY` | Redis list key to read reactions from | `slack_reactions` | ❌ |
 | `TIMEBOMB_REDIS_CHANNEL` | Redis Pub/Sub channel for TimeBomb integration | `timebomb-messages` | ❌ |
+
+## HTTP API
+
+### POST /message
+
+Send a Slack message via HTTP POST request. The endpoint accepts the same JSON payload as the Redis queue method and returns the channel ID and message timestamp.
+
+**Endpoint:** `POST http://localhost:8080/message`
+
+**Request Body:** Same as [Message Formats](#message-formats) below
+
+**Response:**
+```json
+{
+  "channel": "C1234567890",
+  "ts": "1766282873.772199"
+}
+```
+
+The response includes:
+- **channel**: The actual Slack channel ID where the message was posted
+- **ts**: The message timestamp, which can be used for threading (as `thread_ts`) or adding reactions
+
+**Example using curl:**
+```bash
+curl -X POST http://localhost:8080/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel": "#general",
+    "text": "Hello from HTTP API!"
+  }'
+```
+
+**Example response:**
+```json
+{
+  "channel": "C1234567890",
+  "ts": "1766282873.772199"
+}
+```
+
+**Using the response to post a threaded reply:**
+```bash
+# First message
+RESPONSE=$(curl -s -X POST http://localhost:8080/message \
+  -H "Content-Type: application/json" \
+  -d '{"channel": "#general", "text": "Parent message"}')
+
+# Extract the timestamp
+TS=$(echo $RESPONSE | jq -r '.ts')
+
+# Post a reply in the thread
+curl -X POST http://localhost:8080/message \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"channel\": \"#general\",
+    \"text\": \"Reply to thread\",
+    \"thread_ts\": \"$TS\"
+  }"
+```
+
+### GET /health
+
+Health check endpoint that returns `OK` if the service is running.
+
+**Example:**
+```bash
+curl http://localhost:8080/health
+```
 
 ## Message Formats
 
@@ -167,9 +245,46 @@ To add an emoji reaction to an existing Slack message, push a JSON object to the
 
 ## Usage Examples
 
-### Using Docker Compose (Recommended)
+### Using HTTP API (Recommended for Synchronous Operations)
 
-The easiest way to use SlackLiner is with Docker Compose, which sets up both Redis and the service:
+The HTTP API is ideal when you need to get the message timestamp back immediately (e.g., for threading or reactions):
+
+```bash
+# Start the service
+docker-compose up -d
+
+# Post a message and get the timestamp back
+curl -X POST http://localhost:8080/message \
+  -H "Content-Type: application/json" \
+  -d '{"channel":"#general","text":"Hello from HTTP!"}'
+
+# Response: {"channel":"C1234567890","ts":"1766282873.772199"}
+
+# Use the timestamp to post a threaded reply
+curl -X POST http://localhost:8080/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel":"#general",
+    "text":"This is a reply",
+    "thread_ts":"1766282873.772199"
+  }'
+
+# Post a message with metadata
+curl -X POST http://localhost:8080/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel":"#general",
+    "text":"Task created",
+    "metadata":{
+      "event_type":"task_created",
+      "event_payload":{"task_id":"123","priority":"high"}
+    }
+  }'
+```
+
+### Using Docker Compose with Redis Queue
+
+The Redis queue method is ideal for asynchronous, fire-and-forget messaging:
 
 ```bash
 # Start services
@@ -340,10 +455,17 @@ docker build -t slackliner .
 ## Architecture
 
 ```
+                        ┌──────────────────┐
+                        │   HTTP Client    │
+                        │  (curl, app...)  │
+                        └────────┬─────────┘
+                                 │ POST /message
+                                 │ (returns ts & channel)
+                                 ▼
 ┌─────────────┐         ┌──────────────────┐         ┌─────────────┐
-│   Producer  │ RPUSH   │  Redis Queues    │  BLPOP  │ SlackLiner  │
-│   (Any App) ├────────►│  - Messages      ├────────►│   Service   │
-│             │         │  - Reactions     │         │             │
+│   Producer  │ RPUSH   │  Redis Queues    │  BLPOP  │             │
+│   (Any App) ├────────►│  - Messages      ├────────►│ SlackLiner  │
+│             │         │  - Reactions     │         │   Service   │
 └─────────────┘         └──────────────────┘         └──────┬──────┘
                                                              │
                                                              │ POST/React
@@ -353,21 +475,37 @@ docker build -t slackliner .
                                                      └─────────────┘
 ```
 
-1. **Producer**: Any application that can write to Redis (API server, cron job, etc.)
-2. **Redis Queues**: 
+**Two Ways to Send Messages:**
+
+1. **HTTP API** (synchronous): POST to `/message` endpoint and receive channel ID and timestamp in response
+   - Ideal when you need the message timestamp for threading or reactions
+   - Returns immediately with message details
+   
+2. **Redis Queue** (asynchronous): Push messages to Redis using RPUSH
+   - Ideal for fire-and-forget messaging
+   - Decoupled from the sender
+
+**Components:**
+
+1. **HTTP Client**: Any HTTP client (curl, application) that can POST JSON
+2. **Producer**: Any application that can write to Redis (API server, cron job, etc.)
+3. **Redis Queues**: 
    - `slack_messages` - Stores message payloads using RPUSH
    - `slack_reactions` - Stores reaction payloads using RPUSH
-3. **SlackLiner**: Reads from both queues using BLPOP (blocking, efficient)
+4. **SlackLiner Service**: 
+   - HTTP server on port 8080 (configurable)
+   - Reads from both queues using BLPOP (blocking, efficient)
    - Processes messages and posts to Slack channels
    - Processes reactions and adds emoji reactions to existing messages
-4. **Slack API**: Receives messages and reactions via the Slack Bot API
+5. **Slack API**: Receives messages and reactions via the Slack Bot API
 
 ## Project Structure
 
 The codebase is organized into focused modules:
 
 - `main.go` - Application entry point and configuration
-- `types.go` - Type definitions for messages and reactions
+- `types.go` - Type definitions for messages, reactions, and responses
+- `http.go` - HTTP server and endpoint handlers
 - `redis.go` - Redis queue processing logic
 - `slack.go` - Slack API operations (posting messages, adding reactions)
 - `main_test.go` - Comprehensive test suite
