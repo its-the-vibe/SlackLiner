@@ -81,8 +81,10 @@ func sendSlackMessageWithResponse(ctx context.Context, slackClient *slack.Client
 }
 
 // sendSlackMessage sends a message to Slack and optionally publishes to TimeBomb for deletion
+// This is a wrapper around sendSlackMessageWithResponse that discards the return values
+// for use with the Redis queue where we don't need to return the response to the caller
 func sendSlackMessage(ctx context.Context, slackClient *slack.Client, rdb *redis.Client, msg SlackMessage, timeBombChannel string) {
-	// Call the function with response and ignore the return values
+	// Errors are already logged by sendSlackMessageWithResponse, so we don't need to handle them here
 	_, _, _ = sendSlackMessageWithResponse(ctx, slackClient, rdb, msg, timeBombChannel)
 }
 
