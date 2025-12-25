@@ -32,6 +32,12 @@ func sendSlackMessage(ctx context.Context, slackClient *slack.Client, rdb *redis
 		slack.MsgOptionDisableLinkUnfurl(),
 	}
 
+	// Add thread_ts if provided (for posting to a thread)
+	if msg.ThreadTS != "" {
+		log.Printf("Posting as reply to thread: %s", msg.ThreadTS)
+		msgOptions = append(msgOptions, slack.MsgOptionTS(msg.ThreadTS))
+	}
+
 	// Add metadata if provided
 	if msg.Metadata != nil {
 		log.Printf("Including metadata with event_type: %s", msg.Metadata.EventType)

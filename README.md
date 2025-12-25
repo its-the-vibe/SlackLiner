@@ -102,10 +102,25 @@ You can also include custom metadata with your messages:
 }
 ```
 
+### Posting to a Thread (Optional)
+
+You can reply to an existing message thread by including the `thread_ts` field with the timestamp of the parent message:
+
+```json
+{
+  "channel": "#general",
+  "text": "This is a reply in a thread",
+  "thread_ts": "1234567890.123456"
+}
+```
+
+> **Note**: The `thread_ts` value is the message timestamp (`ts`) returned when the original message was posted. Thread replies will appear nested under the parent message in Slack.
+
 ### Field Descriptions
 
 - **channel**: The Slack channel ID or name (e.g., `#general`, `C1234567890`)
 - **text**: The message text to send
+- **thread_ts** (optional): Thread timestamp to reply to an existing thread - use the `ts` value from a previous message
 - **ttl** (optional): Time-to-live in seconds - if provided, the message will be automatically deleted after this duration via [TimeBomb](https://github.com/its-the-vibe/TimeBomb)
 - **metadata** (optional): Custom metadata to attach to the message
   - **event_type**: A string identifier for the event type (max 255 characters)
@@ -201,6 +216,9 @@ redis-cli RPUSH slack_messages '{"channel":"#general","text":"This message will 
 # Using redis-cli - Message with TTL and metadata
 redis-cli RPUSH slack_messages '{"channel":"#general","text":"Alert: High CPU usage","ttl":300,"metadata":{"event_type":"alert","event_payload":{"severity":"high","metric":"cpu"}}}'
 
+# Using redis-cli - Post to a thread
+redis-cli RPUSH slack_messages '{"channel":"#general","text":"This is a reply in a thread","thread_ts":"1234567890.123456"}'
+
 # Using redis-cli - Add emoji reaction
 redis-cli RPUSH slack_reactions '{"reaction":"heart_eyes_cat","channel":"C1234567890","ts":"1766282873.772199"}'
 
@@ -255,6 +273,29 @@ message_with_ttl_and_metadata = {
     }
 }
 r.rpush('slack_messages', json.dumps(message_with_ttl_and_metadata))
+
+# Post to a thread
+thread_reply = {
+    "channel": "#general",
+    "text": "This is a reply in a thread",
+    "thread_ts": "1234567890.123456"
+}
+r.rpush('slack_messages', json.dumps(thread_reply))
+
+# Post to a thread with metadata
+thread_reply_with_metadata = {
+    "channel": "#general",
+    "text": "Thread reply with context",
+    "thread_ts": "1234567890.123456",
+    "metadata": {
+        "event_type": "thread_reply",
+        "event_payload": {
+            "reply_type": "automated",
+            "source": "bot"
+        }
+    }
+}
+r.rpush('slack_messages', json.dumps(thread_reply_with_metadata))
 
 # Add emoji reaction
 reaction = {
