@@ -9,18 +9,19 @@ import (
 	"github.com/slack-go/slack"
 )
 
-// sendSlackMessage sends a message to Slack and optionally publishes to TimeBomb for deletion
-func sendSlackMessage(ctx context.Context, slackClient *slack.Client, rdb *redis.Client, msg SlackMessage, timeBombChannel string) {
+// sendSlackMessageWithResponse sends a message to Slack and returns the channel and timestamp
+// Returns error if message validation fails or Slack API call fails
+func sendSlackMessageWithResponse(ctx context.Context, slackClient *slack.Client, rdb *redis.Client, msg SlackMessage, timeBombChannel string) (string, string, error) {
 	// Validate message
 	if msg.Channel == "" || msg.Text == "" {
 		log.Printf("Invalid message: channel and text are required. Got: %+v", msg)
-		return
+		return "", "", ErrInvalidMessage
 	}
 
 	// Validate TTL if provided
 	if msg.TTL < 0 {
 		log.Printf("Invalid message: ttl must be non-negative if provided. Got: %+v", msg)
-		return
+		return "", "", ErrInvalidTTL
 	}
 
 	// Send to Slack
@@ -50,7 +51,7 @@ func sendSlackMessage(ctx context.Context, slackClient *slack.Client, rdb *redis
 	channelID, timestamp, err := slackClient.PostMessage(msg.Channel, msgOptions...)
 	if err != nil {
 		log.Printf("Error posting to Slack: %v", err)
-		return
+		return "", "", err
 	}
 
 	log.Printf("Message sent successfully to channel %s (timestamp: %s)", channelID, timestamp)
@@ -75,6 +76,16 @@ func sendSlackMessage(ctx context.Context, slackClient *slack.Client, rdb *redis
 			}
 		}
 	}
+
+	return channelID, timestamp, nil
+}
+
+// sendSlackMessage sends a message to Slack and optionally publishes to TimeBomb for deletion
+// This is a wrapper around sendSlackMessageWithResponse that discards the return values
+// for use with the Redis queue where we don't need to return the response to the caller
+func sendSlackMessage(ctx context.Context, slackClient *slack.Client, rdb *redis.Client, msg SlackMessage, timeBombChannel string) {
+	// Errors are already logged by sendSlackMessageWithResponse, so we don't need to handle them here
+	_, _, _ = sendSlackMessageWithResponse(ctx, slackClient, rdb, msg, timeBombChannel)
 }
 
 // addSlackReaction adds an emoji reaction to a Slack message

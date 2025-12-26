@@ -1,5 +1,13 @@
 package main
 
+import "errors"
+
+// Error definitions
+var (
+	ErrInvalidMessage = errors.New("invalid message: channel and text are required")
+	ErrInvalidTTL     = errors.New("invalid message: ttl must be non-negative")
+)
+
 // MessageMetadata represents optional metadata to attach to a Slack message
 type MessageMetadata struct {
 	EventType    string                 `json:"event_type"`
@@ -27,4 +35,10 @@ type ReactionMessage struct {
 	Reaction string `json:"reaction"` // Emoji name without colons (e.g., "heart_eyes_cat")
 	Channel  string `json:"channel"`  // Channel ID (e.g., "C1234567890")
 	TS       string `json:"ts"`       // Message timestamp
+}
+
+// MessageResponse represents the HTTP response after posting a message
+type MessageResponse struct {
+	Channel string `json:"channel"`
+	TS      string `json:"ts"`
 }

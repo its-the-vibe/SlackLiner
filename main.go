@@ -21,6 +21,7 @@ func main() {
 	redisReactionListKey := getEnv("REDIS_REACTION_LIST_KEY", "slack_reactions")
 	timeBombChannel := getEnv("TIMEBOMB_REDIS_CHANNEL", "timebomb-messages")
 	slackToken := getEnv("SLACK_BOT_TOKEN", "")
+	httpAddr := getEnv("HTTP_ADDR", ":8080")
 
 	if slackToken == "" {
 		log.Fatal("SLACK_BOT_TOKEN environment variable is required")
@@ -58,6 +59,9 @@ func main() {
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	// Start HTTP server
+	startHTTPServer(ctx, httpAddr, slackClient, rdb, timeBombChannel)
 
 	// Start message processing loop
 	log.Printf("Starting to listen for messages on Redis list '%s'...", redisListKey)
