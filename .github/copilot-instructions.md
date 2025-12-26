@@ -121,7 +121,7 @@ if slackToken == "" {
 }
 
 // Bad: Fatal error for runtime issues
-if err := postMessage(msg) {
+if err := postMessage(msg); err != nil {
 	log.Fatal(err) // Don't do this - service should continue
 }
 ```
