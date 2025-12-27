@@ -9,6 +9,7 @@ A simple Golang service that reads Slack message payloads from a Redis list and 
 - 🔄 Uses Redis BLPOP for efficient message queue processing
 - 🌐 HTTP API endpoint for direct message posting with timestamp response
 - 💬 Slack App integration with bot token (supports dynamic channels)
+- 🎨 Support for Slack Block Kit for rich, interactive messages
 - 😄 Emoji reaction support for existing messages
 - ⚙️ Fully configurable via environment variables
 - 🛡️ Graceful shutdown handling
@@ -194,10 +195,69 @@ You can reply to an existing message thread by including the `thread_ts` field w
 
 > **Note**: The `thread_ts` value is the message timestamp (`ts`) returned when the original message was posted. Thread replies will appear nested under the parent message in Slack.
 
+### With Blocks (Optional)
+
+You can use Slack's [Block Kit](https://api.slack.com/block-kit) to create rich, interactive messages with structured layouts:
+
+```json
+{
+  "channel": "#general",
+  "blocks": [
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "Hello, *world*! :tada:"
+      }
+    },
+    {
+      "type": "input",
+      "element": {
+        "type": "external_select",
+        "placeholder": {
+          "type": "plain_text",
+          "text": "Select an item",
+          "emoji": true
+        },
+        "action_id": "SlackCompose"
+      },
+      "label": {
+        "type": "plain_text",
+        "text": "Label",
+        "emoji": true
+      },
+      "optional": false
+    }
+  ]
+}
+```
+
+You can also combine blocks with text (text serves as a fallback for notifications and non-block surfaces):
+
+```json
+{
+  "channel": "#general",
+  "text": "Fallback text for notifications",
+  "blocks": [
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "Rich *formatted* message with blocks"
+      }
+    }
+  ]
+}
+```
+
+> **Note**: Either `text` or `blocks` must be provided (or both). When using blocks, the `text` field is optional and serves as a fallback for notifications and legacy clients.
+> See [Slack's Block Kit documentation](https://api.slack.com/block-kit) for available block types and examples.
+
 ### Field Descriptions
 
 - **channel**: The Slack channel ID or name (e.g., `#general`, `C1234567890`)
-- **text**: The message text to send
+- **text** (optional if blocks provided): The message text to send - serves as fallback when blocks are provided
+- **blocks** (optional): An array of [Block Kit](https://api.slack.com/block-kit) blocks for rich, interactive messages
 - **thread_ts** (optional): Thread timestamp to reply to an existing thread - use the `ts` value from a previous message
 - **ttl** (optional): Time-to-live in seconds - if provided, the message will be automatically deleted after this duration via [TimeBomb](https://github.com/its-the-vibe/TimeBomb)
 - **metadata** (optional): Custom metadata to attach to the message
@@ -280,6 +340,49 @@ curl -X POST http://localhost:8080/message \
       "event_payload":{"task_id":"123","priority":"high"}
     }
   }'
+
+# Post a message with blocks
+curl -X POST http://localhost:8080/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel":"#general",
+    "blocks":[
+      {
+        "type":"section",
+        "text":{
+          "type":"mrkdwn",
+          "text":"Hello, *world*! :tada:"
+        }
+      }
+    ]
+  }'
+
+# Post a message with blocks and fallback text
+curl -X POST http://localhost:8080/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel":"#general",
+    "text":"Fallback text for notifications",
+    "blocks":[
+      {
+        "type":"section",
+        "text":{
+          "type":"mrkdwn",
+          "text":"Rich *formatted* message with blocks"
+        }
+      },
+      {
+        "type":"divider"
+      },
+      {
+        "type":"section",
+        "fields":[
+          {"type":"mrkdwn","text":"*Status:*\nCompleted"},
+          {"type":"mrkdwn","text":"*Priority:*\nHigh"}
+        ]
+      }
+    ]
+  }'
 ```
 
 ### Using Docker Compose with Redis Queue
@@ -333,6 +436,12 @@ redis-cli RPUSH slack_messages '{"channel":"#general","text":"Alert: High CPU us
 
 # Using redis-cli - Post to a thread
 redis-cli RPUSH slack_messages '{"channel":"#general","text":"This is a reply in a thread","thread_ts":"1234567890.123456"}'
+
+# Using redis-cli - Message with blocks
+redis-cli RPUSH slack_messages '{"channel":"#general","blocks":[{"type":"section","text":{"type":"mrkdwn","text":"Hello, *world*! :tada:"}}]}'
+
+# Using redis-cli - Message with blocks and text
+redis-cli RPUSH slack_messages '{"channel":"#general","text":"Fallback text","blocks":[{"type":"section","text":{"type":"mrkdwn","text":"Rich *formatted* message"}}]}'
 
 # Using redis-cli - Add emoji reaction
 redis-cli RPUSH slack_reactions '{"reaction":"heart_eyes_cat","channel":"C1234567890","ts":"1766282873.772199"}'
@@ -411,6 +520,47 @@ thread_reply_with_metadata = {
     }
 }
 r.rpush('slack_messages', json.dumps(thread_reply_with_metadata))
+
+# Message with blocks only
+message_with_blocks = {
+    "channel": "#general",
+    "blocks": [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "Hello, *world*! :tada:"
+            }
+        }
+    ]
+}
+r.rpush('slack_messages', json.dumps(message_with_blocks))
+
+# Message with blocks and fallback text
+message_with_blocks_and_text = {
+    "channel": "#general",
+    "text": "Fallback text for notifications",
+    "blocks": [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "Rich *formatted* message with blocks"
+            }
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
+            "fields": [
+                {"type": "mrkdwn", "text": "*Status:*\nCompleted"},
+                {"type": "mrkdwn", "text": "*Priority:*\nHigh"}
+            ]
+        }
+    ]
+}
+r.rpush('slack_messages', json.dumps(message_with_blocks_and_text))
 
 # Add emoji reaction
 reaction = {
