@@ -204,6 +204,159 @@ func TestSlackMessageParsing(t *testing.T) {
 			jsonInput: `{"channel":"#general"`,
 			wantErr:   true,
 		},
+		{
+			name: "message with blocks only",
+			jsonInput: `{
+				"channel":"#general",
+				"blocks":[
+					{
+						"type":"section",
+						"text":{
+							"type":"mrkdwn",
+							"text":"Hello, *world*! :tada:"
+						}
+					}
+				]
+			}`,
+			wantErr: false,
+			validate: func(t *testing.T, msg SlackMessage) {
+				if msg.Channel != "#general" {
+					t.Errorf("Channel = %v, want #general", msg.Channel)
+				}
+				if msg.Text != "" {
+					t.Errorf("Text should be empty for blocks-only message, got: %v", msg.Text)
+				}
+				if len(msg.Blocks) == 0 {
+					t.Fatal("Blocks should not be empty")
+				}
+			},
+		},
+		{
+			name: "message with blocks and text",
+			jsonInput: `{
+				"channel":"#general",
+				"text":"Fallback text",
+				"blocks":[
+					{
+						"type":"section",
+						"text":{
+							"type":"mrkdwn",
+							"text":"Rich *formatted* text"
+						}
+					}
+				]
+			}`,
+			wantErr: false,
+			validate: func(t *testing.T, msg SlackMessage) {
+				if msg.Channel != "#general" {
+					t.Errorf("Channel = %v, want #general", msg.Channel)
+				}
+				if msg.Text != "Fallback text" {
+					t.Errorf("Text = %v, want Fallback text", msg.Text)
+				}
+				if len(msg.Blocks) == 0 {
+					t.Fatal("Blocks should not be empty")
+				}
+			},
+		},
+		{
+			name: "message with complex blocks",
+			jsonInput: `{
+				"channel":"#general",
+				"blocks":[
+					{
+						"type":"section",
+						"text":{
+							"type":"mrkdwn",
+							"text":"Hello, *world*! :tada:"
+						}
+					},
+					{
+						"type":"input",
+						"element":{
+							"type":"external_select",
+							"placeholder":{
+								"type":"plain_text",
+								"text":"Select an item",
+								"emoji":true
+							},
+							"action_id":"SlackCompose"
+						},
+						"label":{
+							"type":"plain_text",
+							"text":"Label",
+							"emoji":true
+						},
+						"optional":false
+					}
+				]
+			}`,
+			wantErr: false,
+			validate: func(t *testing.T, msg SlackMessage) {
+				if msg.Channel != "#general" {
+					t.Errorf("Channel = %v, want #general", msg.Channel)
+				}
+				if len(msg.Blocks) == 0 {
+					t.Fatal("Blocks should not be empty")
+				}
+			},
+		},
+		{
+			name: "message with blocks and metadata",
+			jsonInput: `{
+				"channel":"#general",
+				"blocks":[
+					{
+						"type":"section",
+						"text":{
+							"type":"mrkdwn",
+							"text":"Interactive message"
+						}
+					}
+				],
+				"metadata":{
+					"event_type":"form_submitted",
+					"event_payload":{"form_id":"123"}
+				}
+			}`,
+			wantErr: false,
+			validate: func(t *testing.T, msg SlackMessage) {
+				if len(msg.Blocks) == 0 {
+					t.Fatal("Blocks should not be empty")
+				}
+				if msg.Metadata == nil {
+					t.Fatal("Metadata should not be nil")
+				}
+				if msg.Metadata.EventType != "form_submitted" {
+					t.Errorf("EventType = %v, want form_submitted", msg.Metadata.EventType)
+				}
+			},
+		},
+		{
+			name: "message with blocks and thread_ts",
+			jsonInput: `{
+				"channel":"#general",
+				"blocks":[
+					{
+						"type":"section",
+						"text":{
+							"type":"mrkdwn",
+							"text":"Thread reply with blocks"
+						}
+					}
+				],
+				"thread_ts":"1234567890.123456"
+			}`,
+			wantErr: false,
+			validate: func(t *testing.T, msg SlackMessage) {
+				if len(msg.Blocks) == 0 {
+					t.Fatal("Blocks should not be empty")
+				}
+				if msg.ThreadTS != "1234567890.123456" {
+					t.Errorf("ThreadTS = %v, want 1234567890.123456", msg.ThreadTS)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -305,6 +458,37 @@ func TestSlackMessageMarshaling(t *testing.T) {
 				Text:     "Temporary thread reply",
 				ThreadTS: "1234567890.123456",
 				TTL:      300,
+			},
+			wantErr: false,
+		},
+		{
+			name: "message with blocks only",
+			msg: SlackMessage{
+				Channel: "#general",
+				Blocks:  json.RawMessage(`[{"type":"section","text":{"type":"mrkdwn","text":"Hello, *world*!"}}]`),
+			},
+			wantErr: false,
+		},
+		{
+			name: "message with blocks and text",
+			msg: SlackMessage{
+				Channel: "#general",
+				Text:    "Fallback text",
+				Blocks:  json.RawMessage(`[{"type":"section","text":{"type":"mrkdwn","text":"Rich text"}}]`),
+			},
+			wantErr: false,
+		},
+		{
+			name: "message with blocks and metadata",
+			msg: SlackMessage{
+				Channel: "#general",
+				Blocks:  json.RawMessage(`[{"type":"section","text":{"type":"mrkdwn","text":"Interactive message"}}]`),
+				Metadata: &MessageMetadata{
+					EventType: "form_submitted",
+					EventPayload: map[string]interface{}{
+						"form_id": "123",
+					},
+				},
 			},
 			wantErr: false,
 		},

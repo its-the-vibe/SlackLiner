@@ -12,9 +12,14 @@ import (
 // sendSlackMessageWithResponse sends a message to Slack and returns the channel and timestamp
 // Returns error if message validation fails or Slack API call fails
 func sendSlackMessageWithResponse(ctx context.Context, slackClient *slack.Client, rdb *redis.Client, msg SlackMessage, timeBombChannel string) (string, string, error) {
-	// Validate message
-	if msg.Channel == "" || msg.Text == "" {
-		log.Printf("Invalid message: channel and text are required. Got: %+v", msg)
+	// Validate message - channel is required, and either text or blocks must be provided
+	if msg.Channel == "" {
+		log.Printf("Invalid message: channel is required. Got: %+v", msg)
+		return "", "", ErrInvalidMessage
+	}
+	
+	if msg.Text == "" && len(msg.Blocks) == 0 {
+		log.Printf("Invalid message: either text or blocks are required. Got: %+v", msg)
 		return "", "", ErrInvalidMessage
 	}
 
@@ -25,12 +30,35 @@ func sendSlackMessageWithResponse(ctx context.Context, slackClient *slack.Client
 	}
 
 	// Send to Slack
-	log.Printf("Sending message to channel '%s': %s", msg.Channel, msg.Text)
+	if msg.Text != "" {
+		log.Printf("Sending message to channel '%s': %s", msg.Channel, msg.Text)
+	} else {
+		log.Printf("Sending message with blocks to channel '%s'", msg.Channel)
+	}
 
 	// Build message options
 	msgOptions := []slack.MsgOption{
-		slack.MsgOptionText(msg.Text, false),
 		slack.MsgOptionDisableLinkUnfurl(),
+	}
+
+	// Add text if provided
+	if msg.Text != "" {
+		msgOptions = append(msgOptions, slack.MsgOptionText(msg.Text, false))
+	}
+
+	// Add blocks if provided
+	if len(msg.Blocks) > 0 {
+		var blocks slack.Blocks
+		if err := json.Unmarshal(msg.Blocks, &blocks); err != nil {
+			log.Printf("Error unmarshaling blocks JSON: %v. Raw blocks: %s", err, string(msg.Blocks))
+			return "", "", err
+		}
+		if blocks.BlockSet != nil && len(blocks.BlockSet) > 0 {
+			log.Printf("Including %d blocks", len(blocks.BlockSet))
+			msgOptions = append(msgOptions, slack.MsgOptionBlocks(blocks.BlockSet...))
+		} else {
+			log.Printf("Warning: blocks field provided but no valid blocks found")
+		}
 	}
 
 	// Add thread_ts if provided (for posting to a thread)

@@ -1,10 +1,13 @@
 package main
 
-import "errors"
+import (
+	"encoding/json"
+	"errors"
+)
 
 // Error definitions
 var (
-	ErrInvalidMessage = errors.New("invalid message: channel and text are required")
+	ErrInvalidMessage = errors.New("invalid message: channel and either text or blocks are required")
 	ErrInvalidTTL     = errors.New("invalid message: ttl must be non-negative")
 )
 
@@ -24,7 +27,8 @@ type TimeBombMessage struct {
 // SlackMessage represents the payload structure expected from Redis for posting messages
 type SlackMessage struct {
 	Channel  string           `json:"channel"`
-	Text     string           `json:"text"`
+	Text     string           `json:"text,omitempty"`
+	Blocks   json.RawMessage  `json:"blocks,omitempty"`   // Slack Block Kit blocks as JSON array
 	ThreadTS string           `json:"thread_ts,omitempty"` // Thread timestamp to reply to an existing thread
 	Metadata *MessageMetadata `json:"metadata,omitempty"`
 	TTL      int              `json:"ttl,omitempty"` // Time-to-live in seconds for automatic deletion via TimeBomb
