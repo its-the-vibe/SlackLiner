@@ -50,11 +50,15 @@ func sendSlackMessageWithResponse(ctx context.Context, slackClient *slack.Client
 	if len(msg.Blocks) > 0 {
 		var blocks slack.Blocks
 		if err := json.Unmarshal(msg.Blocks, &blocks); err != nil {
-			log.Printf("Error unmarshaling blocks: %v", err)
+			log.Printf("Error unmarshaling blocks JSON: %v. Raw blocks: %s", err, string(msg.Blocks))
 			return "", "", err
 		}
-		log.Printf("Including %d blocks", len(blocks.BlockSet))
-		msgOptions = append(msgOptions, slack.MsgOptionBlocks(blocks.BlockSet...))
+		if blocks.BlockSet != nil && len(blocks.BlockSet) > 0 {
+			log.Printf("Including %d blocks", len(blocks.BlockSet))
+			msgOptions = append(msgOptions, slack.MsgOptionBlocks(blocks.BlockSet...))
+		} else {
+			log.Printf("Warning: blocks field provided but no valid blocks found")
+		}
 	}
 
 	// Add thread_ts if provided (for posting to a thread)
