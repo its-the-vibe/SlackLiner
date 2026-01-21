@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   slackliner:
     build:
@@ -22,4 +20,4 @@ services:
       - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
       # TimeBomb configuration
       - TIMEBOMB_REDIS_CHANNEL=${TIMEBOMB_REDIS_CHANNEL:-timebomb-messages}
-    restart: unless-stopped
+    restart: on-failure:10
