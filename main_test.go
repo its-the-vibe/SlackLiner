@@ -533,6 +533,9 @@ func TestReactionMessageParsing(t *testing.T) {
 				if msg.TS != "1766282873.772199" {
 					t.Errorf("TS = %v, want 1766282873.772199", msg.TS)
 				}
+				if msg.Remove {
+					t.Errorf("Remove should be false for message without remove field")
+				}
 			},
 		},
 		{
@@ -558,6 +561,38 @@ func TestReactionMessageParsing(t *testing.T) {
 			validate: func(t *testing.T, msg ReactionMessage) {
 				if msg.Reaction != "tada" {
 					t.Errorf("Reaction = %v, want tada", msg.Reaction)
+				}
+			},
+		},
+		{
+			name:      "reaction removal message",
+			jsonInput: `{"reaction":"thumbsup","channel":"C1234567890","ts":"1766282873.772199","remove":true}`,
+			wantErr:   false,
+			validate: func(t *testing.T, msg ReactionMessage) {
+				if msg.Reaction != "thumbsup" {
+					t.Errorf("Reaction = %v, want thumbsup", msg.Reaction)
+				}
+				if msg.Channel != "C1234567890" {
+					t.Errorf("Channel = %v, want C1234567890", msg.Channel)
+				}
+				if msg.TS != "1766282873.772199" {
+					t.Errorf("TS = %v, want 1766282873.772199", msg.TS)
+				}
+				if !msg.Remove {
+					t.Errorf("Remove = %v, want true", msg.Remove)
+				}
+			},
+		},
+		{
+			name:      "reaction removal with remove false",
+			jsonInput: `{"reaction":"heart","channel":"C1234567890","ts":"1766282873.772199","remove":false}`,
+			wantErr:   false,
+			validate: func(t *testing.T, msg ReactionMessage) {
+				if msg.Reaction != "heart" {
+					t.Errorf("Reaction = %v, want heart", msg.Reaction)
+				}
+				if msg.Remove {
+					t.Errorf("Remove = %v, want false", msg.Remove)
 				}
 			},
 		},
@@ -613,6 +648,26 @@ func TestReactionMessageMarshaling(t *testing.T) {
 				Reaction: "tada",
 				Channel:  "C9876543210",
 				TS:       "9999999999.999999",
+			},
+			wantErr: false,
+		},
+		{
+			name: "reaction with remove true",
+			msg: ReactionMessage{
+				Reaction: "thumbsup",
+				Channel:  "C1234567890",
+				TS:       "1766282873.772199",
+				Remove:   true,
+			},
+			wantErr: false,
+		},
+		{
+			name: "reaction with remove false",
+			msg: ReactionMessage{
+				Reaction: "heart",
+				Channel:  "C1234567890",
+				TS:       "1766282873.772199",
+				Remove:   false,
 			},
 			wantErr: false,
 		},

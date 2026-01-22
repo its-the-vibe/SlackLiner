@@ -1,6 +1,6 @@
 # SlackLiner
 
-A simple Golang service that reads Slack message payloads from a Redis list and publishes them to Slack using the Slack API. It also supports adding emoji reactions to existing Slack messages and provides an HTTP API for direct message posting.
+A simple Golang service that reads Slack message payloads from a Redis list and publishes them to Slack using the Slack API. It also supports adding and removing emoji reactions to/from existing Slack messages and provides an HTTP API for direct message posting.
 
 ## Features
 
@@ -10,7 +10,7 @@ A simple Golang service that reads Slack message payloads from a Redis list and 
 - 🌐 HTTP API endpoint for direct message posting with timestamp response
 - 💬 Slack App integration with bot token (supports dynamic channels)
 - 🎨 Support for Slack Block Kit for rich, interactive messages
-- 😄 Emoji reaction support for existing messages
+- 😄 Emoji reaction support (add/remove) for existing messages
 - ⚙️ Fully configurable via environment variables
 - 🛡️ Graceful shutdown handling
 
@@ -281,13 +281,27 @@ To add an emoji reaction to an existing Slack message, push a JSON object to the
 }
 ```
 
+### Removing Emoji Reactions
+
+To remove an emoji reaction from an existing Slack message, include the `remove` field set to `true`:
+
+```json
+{
+  "reaction": "thumbsup",
+  "channel": "C1234567890",
+  "ts": "1766282873.772199",
+  "remove": true
+}
+```
+
 #### Field Descriptions
 
 - **reaction**: The emoji name without colons (e.g., `thumbsup`, `heart_eyes_cat`, `tada`)
 - **channel**: The Slack channel ID (e.g., `C1234567890`)
 - **ts**: The message timestamp (obtained when posting a message or from Slack's API)
+- **remove** (optional): If `true`, removes the reaction instead of adding it. Defaults to `false` if not provided.
 
-> **Note**: To add reactions, you need the message timestamp (`ts`) which is returned when posting a message or can be retrieved from Slack's API. The channel should be the channel ID, not the channel name for reactions.
+> **Note**: To add or remove reactions, you need the message timestamp (`ts`) which is returned when posting a message or can be retrieved from Slack's API. The channel should be the channel ID, not the channel name for reactions.
 
 ## Slack App Setup
 
@@ -399,6 +413,9 @@ docker exec slackliner-redis redis-cli RPUSH slack_messages '{"channel":"#genera
 # Add a reaction to a message
 docker exec slackliner-redis redis-cli RPUSH slack_reactions '{"reaction":"thumbsup","channel":"C1234567890","ts":"1766282873.772199"}'
 
+# Remove a reaction from a message
+docker exec slackliner-redis redis-cli RPUSH slack_reactions '{"reaction":"thumbsup","channel":"C1234567890","ts":"1766282873.772199","remove":true}'
+
 # View logs
 docker-compose logs -f slackliner
 
@@ -448,6 +465,9 @@ redis-cli RPUSH slack_reactions '{"reaction":"heart_eyes_cat","channel":"C123456
 
 # Using redis-cli - Add thumbsup reaction
 redis-cli RPUSH slack_reactions '{"reaction":"thumbsup","channel":"#general","ts":"1234567890.123456"}'
+
+# Using redis-cli - Remove emoji reaction
+redis-cli RPUSH slack_reactions '{"reaction":"thumbsup","channel":"C1234567890","ts":"1766282873.772199","remove":true}'
 
 # Using Python
 import redis
@@ -569,6 +589,15 @@ reaction = {
     "ts": "1766282873.772199"
 }
 r.rpush('slack_reactions', json.dumps(reaction))
+
+# Remove emoji reaction
+remove_reaction = {
+    "reaction": "heart_eyes_cat",
+    "channel": "C1234567890",
+    "ts": "1766282873.772199",
+    "remove": True
+}
+r.rpush('slack_reactions', json.dumps(remove_reaction))
 
 # Add multiple reactions
 reactions = [

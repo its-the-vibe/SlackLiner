@@ -34,11 +34,12 @@ type SlackMessage struct {
 	TTL      int              `json:"ttl,omitempty"` // Time-to-live in seconds for automatic deletion via TimeBomb
 }
 
-// ReactionMessage represents the payload structure for adding emoji reactions
+// ReactionMessage represents the payload structure for adding or removing emoji reactions
 type ReactionMessage struct {
-	Reaction string `json:"reaction"` // Emoji name without colons (e.g., "heart_eyes_cat")
-	Channel  string `json:"channel"`  // Channel ID (e.g., "C1234567890")
-	TS       string `json:"ts"`       // Message timestamp
+	Reaction string `json:"reaction"`        // Emoji name without colons (e.g., "heart_eyes_cat")
+	Channel  string `json:"channel"`         // Channel ID (e.g., "C1234567890")
+	TS       string `json:"ts"`              // Message timestamp
+	Remove   bool   `json:"remove,omitempty"` // If true, removes the reaction instead of adding it
 }
 
 // MessageResponse represents the HTTP response after posting a message
