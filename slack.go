@@ -17,7 +17,7 @@ func sendSlackMessageWithResponse(ctx context.Context, slackClient *slack.Client
 		log.Printf("Invalid message: channel is required. Got: %+v", msg)
 		return "", "", ErrInvalidMessage
 	}
-	
+
 	if msg.Text == "" && len(msg.Blocks) == 0 {
 		log.Printf("Invalid message: either text or blocks are required. Got: %+v", msg)
 		return "", "", ErrInvalidMessage
