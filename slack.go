@@ -17,7 +17,7 @@ func sendSlackMessageWithResponse(ctx context.Context, slackClient *slack.Client
 		log.Printf("Invalid message: channel is required. Got: %+v", msg)
 		return "", "", ErrInvalidMessage
 	}
-	
+
 	if msg.Text == "" && len(msg.Blocks) == 0 {
 		log.Printf("Invalid message: either text or blocks are required. Got: %+v", msg)
 		return "", "", ErrInvalidMessage
@@ -116,7 +116,7 @@ func sendSlackMessage(ctx context.Context, slackClient *slack.Client, rdb *redis
 	_, _, _ = sendSlackMessageWithResponse(ctx, slackClient, rdb, msg, timeBombChannel)
 }
 
-// addSlackReaction adds an emoji reaction to a Slack message
+// addSlackReaction adds or removes an emoji reaction to/from a Slack message
 func addSlackReaction(slackClient *slack.Client, msg ReactionMessage) {
 	// Validate message
 	if msg.Reaction == "" || msg.Channel == "" || msg.TS == "" {
@@ -124,19 +124,32 @@ func addSlackReaction(slackClient *slack.Client, msg ReactionMessage) {
 		return
 	}
 
-	// Add reaction to Slack
-	log.Printf("Adding reaction '%s' to message in channel '%s' at timestamp '%s'", msg.Reaction, msg.Channel, msg.TS)
-
 	itemRef := slack.ItemRef{
 		Channel:   msg.Channel,
 		Timestamp: msg.TS,
 	}
 
-	err := slackClient.AddReaction(msg.Reaction, itemRef)
-	if err != nil {
-		log.Printf("Error adding reaction to Slack: %v", err)
-		return
-	}
+	if msg.Remove {
+		// Remove reaction from Slack
+		log.Printf("Removing reaction '%s' from message in channel '%s' at timestamp '%s'", msg.Reaction, msg.Channel, msg.TS)
 
-	log.Printf("Reaction '%s' added successfully to channel %s (timestamp: %s)", msg.Reaction, msg.Channel, msg.TS)
+		err := slackClient.RemoveReaction(msg.Reaction, itemRef)
+		if err != nil {
+			log.Printf("Error removing reaction from Slack: %v", err)
+			return
+		}
+
+		log.Printf("Reaction '%s' removed successfully from channel %s (timestamp: %s)", msg.Reaction, msg.Channel, msg.TS)
+	} else {
+		// Add reaction to Slack
+		log.Printf("Adding reaction '%s' to message in channel '%s' at timestamp '%s'", msg.Reaction, msg.Channel, msg.TS)
+
+		err := slackClient.AddReaction(msg.Reaction, itemRef)
+		if err != nil {
+			log.Printf("Error adding reaction to Slack: %v", err)
+			return
+		}
+
+		log.Printf("Reaction '%s' added successfully to channel %s (timestamp: %s)", msg.Reaction, msg.Channel, msg.TS)
+	}
 }
