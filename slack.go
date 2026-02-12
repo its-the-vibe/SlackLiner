@@ -53,7 +53,7 @@ func sendSlackMessageWithResponse(ctx context.Context, slackClient *slack.Client
 			log.Printf("Error unmarshaling blocks JSON: %v. Raw blocks: %s", err, string(msg.Blocks))
 			return "", "", err
 		}
-		if blocks.BlockSet != nil && len(blocks.BlockSet) > 0 {
+		if len(blocks.BlockSet) > 0 {
 			log.Printf("Including %d blocks", len(blocks.BlockSet))
 			msgOptions = append(msgOptions, slack.MsgOptionBlocks(blocks.BlockSet...))
 		} else {
