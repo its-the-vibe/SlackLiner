@@ -29,13 +29,6 @@ func sendSlackMessageWithResponse(ctx context.Context, slackClient *slack.Client
 		return "", "", ErrInvalidTTL
 	}
 
-	// Send to Slack
-	if msg.Text != "" {
-		log.Printf("Sending message to channel '%s': %s", msg.Channel, msg.Text)
-	} else {
-		log.Printf("Sending message with blocks to channel '%s'", msg.Channel)
-	}
-
 	// Build message options
 	msgOptions := []slack.MsgOption{
 		slack.MsgOptionDisableLinkUnfurl(),
@@ -76,13 +69,37 @@ func sendSlackMessageWithResponse(ctx context.Context, slackClient *slack.Client
 		}))
 	}
 
-	channelID, timestamp, err := slackClient.PostMessage(msg.Channel, msgOptions...)
-	if err != nil {
-		log.Printf("Error posting to Slack: %v", err)
-		return "", "", err
-	}
+	var channelID, timestamp string
+	var err error
 
-	log.Printf("Message sent successfully to channel %s (timestamp: %s)", channelID, timestamp)
+	if msg.TS != "" {
+		// Update an existing message at the given timestamp
+		if msg.Text != "" {
+			log.Printf("Updating message in channel '%s' at timestamp '%s': %s", msg.Channel, msg.TS, msg.Text)
+		} else {
+			log.Printf("Updating message with blocks in channel '%s' at timestamp '%s'", msg.Channel, msg.TS)
+		}
+		var updatedText string
+		channelID, timestamp, updatedText, err = slackClient.UpdateMessage(msg.Channel, msg.TS, msgOptions...)
+		if err != nil {
+			log.Printf("Error updating Slack message: %v", err)
+			return "", "", err
+		}
+		log.Printf("Message updated successfully in channel %s (timestamp: %s, text: %s)", channelID, timestamp, updatedText)
+	} else {
+		// Post a new message
+		if msg.Text != "" {
+			log.Printf("Sending message to channel '%s': %s", msg.Channel, msg.Text)
+		} else {
+			log.Printf("Sending message with blocks to channel '%s'", msg.Channel)
+		}
+		channelID, timestamp, err = slackClient.PostMessage(msg.Channel, msgOptions...)
+		if err != nil {
+			log.Printf("Error posting to Slack: %v", err)
+			return "", "", err
+		}
+		log.Printf("Message sent successfully to channel %s (timestamp: %s)", channelID, timestamp)
+	}
 
 	// If TTL is specified, publish to TimeBomb for scheduled deletion
 	if msg.TTL > 0 {

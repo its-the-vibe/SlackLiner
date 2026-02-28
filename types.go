@@ -29,6 +29,7 @@ type SlackMessage struct {
 	Channel  string           `json:"channel"`
 	Text     string           `json:"text,omitempty"`
 	Blocks   json.RawMessage  `json:"blocks,omitempty"`    // Slack Block Kit blocks as JSON array
+	TS       string           `json:"ts,omitempty"`        // Message timestamp - if provided, updates the existing message at that timestamp
 	ThreadTS string           `json:"thread_ts,omitempty"` // Thread timestamp to reply to an existing thread
 	Metadata *MessageMetadata `json:"metadata,omitempty"`
 	TTL      int              `json:"ttl,omitempty"` // Time-to-live in seconds for automatic deletion via TimeBomb
