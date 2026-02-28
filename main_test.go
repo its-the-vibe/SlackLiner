@@ -200,6 +200,50 @@ func TestSlackMessageParsing(t *testing.T) {
 			},
 		},
 		{
+			name:      "message with ts (update existing)",
+			jsonInput: `{"channel":"#general","ts":"1234567890.123456","text":"Updated message text"}`,
+			wantErr:   false,
+			validate: func(t *testing.T, msg SlackMessage) {
+				if msg.Channel != "#general" {
+					t.Errorf("Channel = %v, want #general", msg.Channel)
+				}
+				if msg.TS != "1234567890.123456" {
+					t.Errorf("TS = %v, want 1234567890.123456", msg.TS)
+				}
+				if msg.Text != "Updated message text" {
+					t.Errorf("Text = %v, want Updated message text", msg.Text)
+				}
+			},
+		},
+		{
+			name: "message with ts and blocks (update with blocks)",
+			jsonInput: `{
+				"channel":"#general",
+				"ts":"1234567890.123456",
+				"blocks":[
+					{
+						"type":"section",
+						"text":{
+							"type":"mrkdwn",
+							"text":"Updated *block* content"
+						}
+					}
+				]
+			}`,
+			wantErr: false,
+			validate: func(t *testing.T, msg SlackMessage) {
+				if msg.Channel != "#general" {
+					t.Errorf("Channel = %v, want #general", msg.Channel)
+				}
+				if msg.TS != "1234567890.123456" {
+					t.Errorf("TS = %v, want 1234567890.123456", msg.TS)
+				}
+				if len(msg.Blocks) == 0 {
+					t.Fatal("Blocks should not be empty")
+				}
+			},
+		},
+		{
 			name:      "invalid JSON",
 			jsonInput: `{"channel":"#general"`,
 			wantErr:   true,
@@ -424,6 +468,15 @@ func TestSlackMessageMarshaling(t *testing.T) {
 						"severity": "high",
 					},
 				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "message with ts (update existing)",
+			msg: SlackMessage{
+				Channel: "#general",
+				TS:      "1234567890.123456",
+				Text:    "Updated message text",
 			},
 			wantErr: false,
 		},

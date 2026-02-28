@@ -10,6 +10,7 @@ A simple Golang service that reads Slack message payloads from a Redis list and 
 - 🌐 HTTP API endpoint for direct message posting with timestamp response
 - 💬 Slack App integration with bot token (supports dynamic channels)
 - 🎨 Support for Slack Block Kit for rich, interactive messages
+- ✏️ Update existing messages by supplying their timestamp (`ts`)
 - 😄 Emoji reaction support (add/remove) for existing messages
 - ⚙️ Fully configurable via environment variables
 - 🛡️ Graceful shutdown handling
@@ -195,6 +196,38 @@ You can reply to an existing message thread by including the `thread_ts` field w
 
 > **Note**: The `thread_ts` value is the message timestamp (`ts`) returned when the original message was posted. Thread replies will appear nested under the parent message in Slack.
 
+### Updating an Existing Message
+
+To update an existing Slack message, include the `ts` field with the timestamp of the message to update:
+
+```json
+{
+  "channel": "#general",
+  "ts": "1234567890.123456",
+  "text": "Updated message text"
+}
+```
+
+You can also update a message using blocks:
+
+```json
+{
+  "channel": "#general",
+  "ts": "1234567890.123456",
+  "blocks": [
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "Updated *rich* content"
+      }
+    }
+  ]
+}
+```
+
+> **Note**: The `ts` value is the message timestamp returned when the original message was posted. When `ts` is provided, the existing message is updated using Slack's `chat.update` API instead of posting a new message.
+
 ### With Blocks (Optional)
 
 You can use Slack's [Block Kit](https://api.slack.com/block-kit) to create rich, interactive messages with structured layouts:
@@ -258,6 +291,7 @@ You can also combine blocks with text (text serves as a fallback for notificatio
 - **channel**: The Slack channel ID or name (e.g., `#general`, `C1234567890`)
 - **text** (optional if blocks provided): The message text to send - serves as fallback when blocks are provided
 - **blocks** (optional): An array of [Block Kit](https://api.slack.com/block-kit) blocks for rich, interactive messages
+- **ts** (optional): Message timestamp - if provided, updates the existing message at that timestamp using `chat.update` instead of posting a new message
 - **thread_ts** (optional): Thread timestamp to reply to an existing thread - use the `ts` value from a previous message
 - **ttl** (optional): Time-to-live in seconds - if provided, the message will be automatically deleted after this duration via [TimeBomb](https://github.com/its-the-vibe/TimeBomb)
 - **metadata** (optional): Custom metadata to attach to the message
@@ -397,6 +431,15 @@ curl -X POST http://localhost:8080/message \
       }
     ]
   }'
+
+# Update an existing message using its timestamp
+curl -X POST http://localhost:8080/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel":"#general",
+    "ts":"1766282873.772199",
+    "text":"Updated message text"
+  }'
 ```
 
 ### Using Docker Compose with Redis Queue
@@ -459,6 +502,9 @@ redis-cli RPUSH slack_messages '{"channel":"#general","blocks":[{"type":"section
 
 # Using redis-cli - Message with blocks and text
 redis-cli RPUSH slack_messages '{"channel":"#general","text":"Fallback text","blocks":[{"type":"section","text":{"type":"mrkdwn","text":"Rich *formatted* message"}}]}'
+
+# Using redis-cli - Update an existing message
+redis-cli RPUSH slack_messages '{"channel":"#general","ts":"1234567890.123456","text":"Updated message text"}'
 
 # Using redis-cli - Add emoji reaction
 redis-cli RPUSH slack_reactions '{"reaction":"heart_eyes_cat","channel":"C1234567890","ts":"1766282873.772199"}'
