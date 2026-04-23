@@ -34,7 +34,11 @@ func main() {
 		Password: redisPassword,
 		DB:       redisDB,
 	})
-	defer rdb.Close()
+	defer func() {
+		if err := rdb.Close(); err != nil {
+			log.Printf("Error closing Redis connection: %v", err)
+		}
+	}()
 
 	// Test Redis connection
 	ctx := context.Background()

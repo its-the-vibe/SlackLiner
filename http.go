@@ -22,7 +22,9 @@ func startHTTPServer(ctx context.Context, addr string, slackClient *slack.Client
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		if _, err := w.Write([]byte("OK")); err != nil {
+			log.Printf("Error writing health check response: %v", err)
+		}
 	})
 
 	server := &http.Server{
