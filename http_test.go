@@ -1,7 +1,12 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -104,6 +109,74 @@ func TestMessageResponseMarshaling(t *testing.T) {
 				if resp.TS != tt.resp.TS {
 					t.Errorf("TS = %v, want %v", resp.TS, tt.resp.TS)
 				}
+			}
+		})
+	}
+}
+
+func TestHandlePostMessage(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name           string
+		method         string
+		body           string
+		wantStatusCode int
+	}{
+		{
+			name:           "GET method not allowed",
+			method:         http.MethodGet,
+			body:           "",
+			wantStatusCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:           "PUT method not allowed",
+			method:         http.MethodPut,
+			body:           "",
+			wantStatusCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:           "invalid JSON body",
+			method:         http.MethodPost,
+			body:           `{"channel":`,
+			wantStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:           "missing channel returns bad request",
+			method:         http.MethodPost,
+			body:           `{"text":"hello"}`,
+			wantStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:           "missing text and blocks returns bad request",
+			method:         http.MethodPost,
+			body:           `{"channel":"#general"}`,
+			wantStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:           "negative TTL returns bad request",
+			method:         http.MethodPost,
+			body:           `{"channel":"#general","text":"hello","ttl":-1}`,
+			wantStatusCode: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var body io.Reader
+			if tt.body != "" {
+				body = strings.NewReader(tt.body)
+			} else {
+				body = strings.NewReader("")
+			}
+			req := httptest.NewRequest(tt.method, "/message", body)
+			rec := httptest.NewRecorder()
+
+			// nil slackClient and rdb are safe for paths that error before calling Slack/Redis
+			handlePostMessage(ctx, rec, req, nil, nil, "timebomb-channel")
+
+			if rec.Code != tt.wantStatusCode {
+				t.Errorf("status code = %v, want %v (body: %s)", rec.Code, tt.wantStatusCode, rec.Body.String())
 			}
 		})
 	}

@@ -5,6 +5,50 @@ import (
 	"testing"
 )
 
+func TestGetEnv(t *testing.T) {
+	tests := []struct {
+		name         string
+		key          string
+		defaultValue string
+		envValue     string
+		want         string
+	}{
+		{
+			name:         "returns default when env var is not set",
+			key:          "TEST_GETENV_NOT_SET",
+			defaultValue: "default_value",
+			envValue:     "",
+			want:         "default_value",
+		},
+		{
+			name:         "returns env value when set",
+			key:          "TEST_GETENV_SET",
+			defaultValue: "default_value",
+			envValue:     "custom_value",
+			want:         "custom_value",
+		},
+		{
+			name:         "returns default when env var is empty string",
+			key:          "TEST_GETENV_EMPTY",
+			defaultValue: "fallback",
+			envValue:     "",
+			want:         "fallback",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envValue != "" {
+				t.Setenv(tt.key, tt.envValue)
+			}
+			got := getEnv(tt.key, tt.defaultValue)
+			if got != tt.want {
+				t.Errorf("getEnv(%q, %q) = %q, want %q", tt.key, tt.defaultValue, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSlackMessageParsing(t *testing.T) {
 	tests := []struct {
 		name      string

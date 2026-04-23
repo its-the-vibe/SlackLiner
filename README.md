@@ -1,5 +1,7 @@
 # SlackLiner
 
+<img src="https://github.com/its-the-vibe/SlackLiner/actions/workflows/ci.yaml/badge.svg" alt="CI">
+
 A simple Golang service that reads Slack message payloads from a Redis list and publishes them to Slack using the Slack API. It also supports adding and removing emoji reactions to/from existing Slack messages and provides an HTTP API for direct message posting.
 
 ## Features
@@ -54,6 +56,55 @@ A simple Golang service that reads Slack message payloads from a Redis list and 
    ```bash
    docker exec slackliner-redis redis-cli RPUSH slack_reactions '{"reaction":"thumbsup","channel":"#general","ts":"1234567890.123456"}'
    ```
+
+## Development
+
+### Makefile Targets
+
+A `Makefile` is provided for common development tasks:
+
+| Target | Description |
+|--------|-------------|
+| `make build` | Compile the Go project (`go build -o slackliner .`) |
+| `make test` | Run all unit tests with coverage (`go test -v -coverprofile=coverage.out ./...`) |
+| `make lint` | Run linters via [golangci-lint](https://golangci-lint.run/) |
+| `make fmt` | Format all Go source files (`go fmt ./...`) |
+| `make docker-build` | Build the Docker image (`docker build -t slackliner .`) |
+
+**Examples:**
+```bash
+# Build the binary
+make build
+
+# Run tests with coverage
+make test
+
+# Format code
+make fmt
+
+# Lint code (requires golangci-lint to be installed)
+make lint
+
+# Build Docker image
+make docker-build
+```
+
+### CI/CD
+
+This project uses [GitHub Actions](https://docs.github.com/en/actions) for continuous integration. The workflow (`.github/workflows/ci.yaml`) runs automatically on every push and pull request to `main` and performs the following steps:
+
+1. **Format check** – Verifies all code is formatted with `go fmt`
+2. **Build** – Compiles the project with `make build`
+3. **Test** – Runs all unit tests with coverage via `make test` and uploads the coverage report as an artifact
+4. **Lint** – Runs `golangci-lint` via `make lint`
+
+To run the same checks locally before pushing:
+```bash
+make fmt
+make build
+make test
+make lint
+```
 
 ## Configuration
 
