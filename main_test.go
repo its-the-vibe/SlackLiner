@@ -73,6 +73,22 @@ func TestSlackMessageParsing(t *testing.T) {
 			},
 		},
 		{
+			name:      "direct message with user_id",
+			jsonInput: `{"user_id":"U1234567890","text":"Hello privately"}`,
+			wantErr:   false,
+			validate: func(t *testing.T, msg SlackMessage) {
+				if msg.UserID != "U1234567890" {
+					t.Errorf("UserID = %v, want U1234567890", msg.UserID)
+				}
+				if msg.Channel != "" {
+					t.Errorf("Channel should be empty for direct messages, got %v", msg.Channel)
+				}
+				if msg.Text != "Hello privately" {
+					t.Errorf("Text = %v, want Hello privately", msg.Text)
+				}
+			},
+		},
+		{
 			name: "message with metadata",
 			jsonInput: `{
 				"channel":"#general",
@@ -473,6 +489,14 @@ func TestSlackMessageMarshaling(t *testing.T) {
 			msg: SlackMessage{
 				Channel: "#general",
 				Text:    "Hello",
+			},
+			wantErr: false,
+		},
+		{
+			name: "direct message with user_id",
+			msg: SlackMessage{
+				UserID: "U1234567890",
+				Text:   "Hello privately",
 			},
 			wantErr: false,
 		},

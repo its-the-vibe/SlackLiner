@@ -12,9 +12,9 @@ import (
 // sendSlackMessageWithResponse sends a message to Slack and returns the channel and timestamp
 // Returns error if message validation fails or Slack API call fails
 func sendSlackMessageWithResponse(ctx context.Context, slackClient *slack.Client, rdb *redis.Client, msg SlackMessage, timeBombChannel string) (string, string, error) {
-	// Validate message - channel is required, and either text or blocks must be provided
-	if msg.Channel == "" {
-		log.Printf("Invalid message: channel is required. Got: %+v", msg)
+	// Validate message destination - exactly one of channel or user_id is required.
+	if (msg.Channel == "" && msg.UserID == "") || (msg.Channel != "" && msg.UserID != "") {
+		log.Printf("Invalid message: exactly one of channel or user_id is required. Got: %+v", msg)
 		return "", "", ErrInvalidMessage
 	}
 
@@ -27,6 +27,20 @@ func sendSlackMessageWithResponse(ctx context.Context, slackClient *slack.Client
 	if msg.TTL < 0 {
 		log.Printf("Invalid message: ttl must be non-negative if provided. Got: %+v", msg)
 		return "", "", ErrInvalidTTL
+	}
+
+	destinationChannel := msg.Channel
+	if msg.UserID != "" {
+		params := &slack.OpenConversationParameters{
+			Users: []string{msg.UserID},
+		}
+		channel, _, _, err := slackClient.OpenConversation(params)
+		if err != nil {
+			log.Printf("Error opening DM conversation for user '%s': %v", msg.UserID, err)
+			return "", "", err
+		}
+		destinationChannel = channel.ID
+		log.Printf("Resolved DM channel '%s' for user '%s'", destinationChannel, msg.UserID)
 	}
 
 	// Build message options
@@ -75,12 +89,12 @@ func sendSlackMessageWithResponse(ctx context.Context, slackClient *slack.Client
 	if msg.TS != "" {
 		// Update an existing message at the given timestamp
 		if msg.Text != "" {
-			log.Printf("Updating message in channel '%s' at timestamp '%s': %s", msg.Channel, msg.TS, msg.Text)
+			log.Printf("Updating message in channel '%s' at timestamp '%s': %s", destinationChannel, msg.TS, msg.Text)
 		} else {
-			log.Printf("Updating message with blocks in channel '%s' at timestamp '%s'", msg.Channel, msg.TS)
+			log.Printf("Updating message with blocks in channel '%s' at timestamp '%s'", destinationChannel, msg.TS)
 		}
 		var updatedText string
-		channelID, timestamp, updatedText, err = slackClient.UpdateMessage(msg.Channel, msg.TS, msgOptions...)
+		channelID, timestamp, updatedText, err = slackClient.UpdateMessage(destinationChannel, msg.TS, msgOptions...)
 		if err != nil {
 			log.Printf("Error updating Slack message: %v", err)
 			return "", "", err
@@ -89,11 +103,11 @@ func sendSlackMessageWithResponse(ctx context.Context, slackClient *slack.Client
 	} else {
 		// Post a new message
 		if msg.Text != "" {
-			log.Printf("Sending message to channel '%s': %s", msg.Channel, msg.Text)
+			log.Printf("Sending message to channel '%s': %s", destinationChannel, msg.Text)
 		} else {
-			log.Printf("Sending message with blocks to channel '%s'", msg.Channel)
+			log.Printf("Sending message with blocks to channel '%s'", destinationChannel)
 		}
-		channelID, timestamp, err = slackClient.PostMessage(msg.Channel, msgOptions...)
+		channelID, timestamp, err = slackClient.PostMessage(destinationChannel, msgOptions...)
 		if err != nil {
 			log.Printf("Error posting to Slack: %v", err)
 			return "", "", err

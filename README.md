@@ -339,7 +339,8 @@ You can also combine blocks with text (text serves as a fallback for notificatio
 
 ### Field Descriptions
 
-- **channel**: The Slack channel ID or name (e.g., `#general`, `C1234567890`)
+- **channel**: The Slack channel ID or name (e.g., `#general`, `C1234567890`). Required when `user_id` is not provided.
+- **user_id** (optional): Slack user ID for direct messages (e.g., `U1234567890`). Required when `channel` is not provided.
 - **text** (optional if blocks provided): The message text to send - serves as fallback when blocks are provided
 - **blocks** (optional): An array of [Block Kit](https://api.slack.com/block-kit) blocks for rich, interactive messages
 - **ts** (optional): Message timestamp - if provided, updates the existing message at that timestamp using `chat.update` instead of posting a new message
@@ -351,6 +352,8 @@ You can also combine blocks with text (text serves as a fallback for notificatio
   
 > **Note**: Metadata is useful for tracking message context, workflow states, or custom events. 
 > See [Slack's metadata documentation](https://api.slack.com/reference/metadata) for more details.
+
+> **Note**: Provide exactly one destination field: either `channel` or `user_id` (not both).
 
 > **Note**: The TTL feature requires [TimeBomb](https://github.com/its-the-vibe/TimeBomb) to be running and connected to the same Redis instance. When a message with a TTL is sent, SlackLiner will publish the message details to the configured TimeBomb Redis channel for scheduled deletion.
 
@@ -397,6 +400,7 @@ To remove an emoji reaction from an existing Slack message, include the `remove`
 5. Add the following Bot Token Scopes:
    - `chat:write` - Send messages
    - `chat:write.public` - Send messages to channels the app isn't in
+   - `im:write` (and optionally `mpim:write`) - Open direct message conversations
    - `reactions:write` - Add emoji reactions to messages
 6. Install the app to your workspace
 7. Copy the "Bot User OAuth Token" (starts with `xoxb-`)
