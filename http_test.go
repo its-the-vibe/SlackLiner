@@ -148,6 +148,12 @@ func TestHandlePostMessage(t *testing.T) {
 			wantStatusCode: http.StatusBadRequest,
 		},
 		{
+			name:           "both channel and user_id returns bad request",
+			method:         http.MethodPost,
+			body:           `{"channel":"#general","user_id":"U1234567890","text":"hello"}`,
+			wantStatusCode: http.StatusBadRequest,
+		},
+		{
 			name:           "missing text and blocks returns bad request",
 			method:         http.MethodPost,
 			body:           `{"channel":"#general"}`,
