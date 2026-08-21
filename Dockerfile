@@ -1,23 +1,28 @@
 # Build stage
-FROM golang:1.26.6-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.6-alpine AS builder
+
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /app
 
-# Copy all source files
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source and build
 COPY . .
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o slackliner .
 
-# Download dependencies and build
-RUN go mod download && \
-    CGO_ENABLED=0 GOOS=linux go build -a -ldflags="-w -s" -o slackliner .
-
-# Runtime stage
-FROM scratch
+# Runtime stage (distroless)
+FROM gcr.io/distroless/static-debian13:nonroot
 
 # Copy the binary from builder
 COPY --from=builder /app/slackliner /slackliner
 
-# Copy SSL certificates for HTTPS connections
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+USER nonroot:nonroot
 
 # Run the application
 ENTRYPOINT ["/slackliner"]
